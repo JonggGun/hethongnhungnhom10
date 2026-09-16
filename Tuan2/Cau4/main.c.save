@@ -1,0 +1,172 @@
+#include <stdint.h>
+#define RCC_APB1ENR   (*(volatile uint32_t *)0x4002101C)
+#define RCC_APB2ENR   (*(volatile uint32_t *)0x40021018)
+
+
+/* =====================================================
+ * GPIOA
+z#define GPIOA_CRL     (*(volatile uint32_t *)0x40010800)
+#define GPIOA_ODR     (*(volatile uint32_t *)0x4001080C)
+
+
+/* =====================================================
+ * TIM2
+ * ===================================================== */
+
+#define TIM2_CR1      (*(volatile uint32_t *)0x40000000)
+#define TIM2_EGR      (*(volatile uint32_t *)0x40000014)
+#define TIM2_CCMR1    (*(volatile uint32_t *)0x40000018)
+#define TIM2_CCMR2    (*(volatile uint32_t *)0x4000001C)
+#define TIM2_CCER     (*(volatile uint32_t *)0x40000020)
+#define TIM2_PSC      (*(volatile uint32_t *)0x40000028)
+#define TIM2_ARR      (*(volatile uint32_t *)0x4000002C)
+#define TIM2_CCR1     (*(volatile uint32_t *)0x40000034)
+#define TIM2_CCR2     (*(volatile uint32_t *)0x40000038)
+#define TIM2_CCR3     (*(volatile uint32_t *)0x4000003C)
+#define TIM2_CCR4     (*(volatile uint32_t *)0x40000040)
+
+
+/* =====================================================
+ * GPIOA INIT
+ *
+ * PA0, PA1, PA2, PA3:
+ * Alternate Function Push-Pull
+ * Output speed 2 MHz
+ *
+ * Mỗi chân dùng 4 bit:
+ * CNF = 10
+ * MODE = 10
+ * Giá trị = 1010 = 0xA
+ * ===================================================== */
+
+static void GPIOA_Init(void)
+{
+    /* Bật clock GPIOA */
+    RCC_APB2ENR |= (1 << 2);
+
+    /*
+     * Cấu hình PA0 đến PA3 là
+     * Alternate Function Push-Pull
+     */
+    GPIOA_CRL &= ~0xFFFF;
+    GPIOA_CRL |= 0xAAAA;
+}
+
+
+/* =====================================================
+ * TIM2 PWM INIT
+ *
+ * Nếu startup.c dùng clock mặc định HSI 8 MHz:
+ *
+ * Timer clock = 8 MHz
+ * PSC = 7
+ * Counter clock = 1 MHz
+ * ARR = 999
+ * PWM frequency = 1 kHz
+ *
+ * Nếu hệ thống đã chạy 72 MHz,
+ * đổi TIM2_PSC = 71.
+ * ===================================================== */
+
+static void TIM2_PWM_Init(void)
+{
+    /* Bật clock TIM2 */
+    RCC_APB1ENR |= (1 << 0);
+
+    /* Tắt Timer trong lúc cấu hình */
+    TIM2_CR1 = 0;
+
+    /* Chia clock Timer */
+    TIM2_PSC = 7;
+
+    /* PWM = 1 kHz */
+    TIM2_ARR = 999;
+
+    /* Duty cycle */
+    TIM2_CCR1 = 100;   /* PA0: 10% */
+    TIM2_CCR2 = 300;   /* PA1: 30% */
+    TIM2_CCR3 = 500;   /* PA2: 50% */
+    TIM2_CCR4 = 700;   /* PA3: 70% */
+
+    /*
+     * TIM2 Channel 1:
+     *
+     * OC1M = 110: PWM mode 1
+     * OC1PE = 1: preload
+     */
+    TIM2_CCMR1 = 0;
+
+    TIM2_CCMR1 |= (6 << 4);
+    TIM2_CCMR1 |= (1 << 3);
+
+    /*
+     * TIM2 Channel 2
+     */
+    TIM2_CCMR1 |= (6 << 12);
+    TIM2_CCMR1 |= (1 << 11);
+
+    /*
+     * TIM2 Channel 3
+     */
+    TIM2_CCMR2 = 0;
+
+    TIM2_CCMR2 |= (6 << 4);
+    TIM2_CCMR2 |= (1 << 3);
+
+    /*
+     * TIM2 Channel 4
+     */
+    TIM2_CCMR2 |= (6 << 12);
+    TIM2_CCMR2 |= (1 << 11);
+
+    /*
+     * Bật output cho cả 4 kênh:
+     *
+     * CC1E = bit 0
+     * CC2E = bit 4
+     * CC3E = bit 8
+     * CC4E = bit 12
+     */
+    TIM2_CCER = 0;
+
+    TIM2_CCER |= (1 << 0);
+    TIM2_CCER |= (1 << 4);
+    TIM2_CCER |= (1 << 8);
+    TIM2_CCER |= (1 << 12);
+
+    /*
+     * Cho phép preload ARR
+     */
+    TIM2_CR1 |= (1 << 7);
+
+    /*
+     * Cập nhật PSC, ARR, CCR
+     */
+    TIM2_EGR = 1;
+
+    /*
+     * Bật Timer
+     */
+    TIM2_CR1 |= (1 << 0);
+}
+
+
+/* =====================================================
+ * MAIN
+ * ===================================================== */
+
+int main(void)
+{
+    GPIOA_Init();
+
+    TIM2_PWM_Init();
+
+    while (1)
+    {
+        /*
+         * TIM2 tự động phát PWM.
+         */
+    }
+
+    return 0;
+}
